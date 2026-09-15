@@ -13,7 +13,10 @@ export const weightsQuerySchema = z.object({
   const values = [w.skills, w.experience, w.location, w.salary].filter(
     (v): v is number => v !== undefined
   );
-  return values.length === 0 || Math.abs(values.reduce((a, b) => a + b, 0) - 100) < 0.000001;
+  return values.length === 0 || (
+    values.length === 4 &&
+    Math.abs(values.reduce((a, b) => a + b, 0) - 100) < 0.000001
+  );
 }, {
-  message: "If weights are provided, skills + experience + location + salary must equal 100",
+  message: "Provide all four weights, and their total must equal 100",
 });

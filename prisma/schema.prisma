@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum SkillType {
@@ -13,14 +12,15 @@ enum SkillType {
 }
 
 model Candidate {
-  id               Int      @id @default(autoincrement())
-  name             String
-  skills           String[]
+  id                Int      @id @default(autoincrement())
+  name              String
+  skills            String[]
   yearsOfExperience Float
-  location         String
-  expectedSalary   Float
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  location          String
+  expectedSalary    Float
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
   @@index([location])
 }
 
@@ -35,16 +35,18 @@ model Job {
   requiredSkills     RequiredSkill[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+
   @@index([location])
 }
 
 model RequiredSkill {
-  id       Int       @id @default(autoincrement())
-  jobId   Int
-  name     String
-  type     SkillType
-  job      Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id    Int       @id @default(autoincrement())
+  jobId Int
+  name  String
+  type  SkillType
+  job   Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, name])
   @@index([jobId])
   @@index([name])
-  @@unique([jobId, name])
 }

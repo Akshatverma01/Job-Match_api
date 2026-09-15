@@ -46,6 +46,34 @@ test("matches skills case-insensitively", () => {
   expect(result.breakdown.skills.score).toBe(50);
 });
 
+test("nice-to-have skills boost the score without excluding the candidate", () => {
+  const withoutNiceToHave = scoreJob(
+    {
+      skills: ["React", "TypeScript"],
+      yearsOfExperience: 2,
+      location: "Noida",
+      expectedSalary: 600000,
+    },
+    job,
+    DEFAULT_WEIGHTS
+  );
+  const withNiceToHave = scoreJob(
+    {
+      skills: ["React", "TypeScript", "Next.js"],
+      yearsOfExperience: 2,
+      location: "Noida",
+      expectedSalary: 600000,
+    },
+    job,
+    DEFAULT_WEIGHTS
+  );
+
+  expect(withoutNiceToHave.eligible).toBe(true);
+  expect(withNiceToHave.eligible).toBe(true);
+  expect(withNiceToHave.score).toBeGreaterThan(withoutNiceToHave.score);
+  expect(withoutNiceToHave.missingNiceToHaveSkills).toEqual(["Next.js"]);
+});
+
 test("penalizes but does not exclude lower experience", () => {
   const result = scoreJob(
     {

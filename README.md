@@ -1,24 +1,78 @@
-# Job Recommendation Engine — Job Match API
+# Job Match API
 
-A small REST API that recommends jobs to candidates using a transparent, explainable rule-based scoring model.
+> A transparent, rule-based API for matching candidates with relevant jobs.
 
-## Tech Stack
+![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-4169E1?logo=postgresql&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-Jest-C21325?logo=jest&logoColor=white)
 
-- Node.js + TypeScript
-- Express
-- PostgreSQL
-- Prisma ORM
-- Zod validation
-- Jest + Supertest
-- Docker + Docker Compose
+The API scores candidate-job fit using skills, experience, location, and salary. Every recommendation includes an explainable score breakdown, while missing must-have skills exclude a job before ranking.
 
-## Requirements
+## Quick start
 
-- Node.js 20+ (22 recommended)
-- PostgreSQL 14+ for local development
-- Docker Desktop if using Docker
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
 
-## Run locally
+Open [http://localhost:3000/health](http://localhost:3000/health) to verify the API is running.
+
+<details>
+<summary>Run the complete setup with Docker</summary>
+
+```bash
+docker compose up --build
+```
+
+Docker Compose starts PostgreSQL, applies Prisma migrations, and starts the API at `http://localhost:3000`.
+
+</details>
+
+## Contents
+
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [API reference](#api-reference)
+- [PRD test cases](#prd-test-cases)
+- [Scoring model](#scoring-model)
+- [Testing](#testing)
+- [Useful commands](#useful-commands)
+- [Project structure](#project-structure)
+
+## Features
+
+- Create and retrieve candidates and jobs
+- Recommend jobs for a candidate
+- Find best-fit candidates for a job
+- Explain every recommendation with score breakdowns and matched skills
+- Enforce must-have skills as a hard eligibility filter
+- Override scoring weights per request
+- Validate request bodies and query parameters with Zod
+- Run locally or with Docker Compose
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Runtime | Node.js 20+ |
+| Language | TypeScript |
+| API | Express 5 |
+| Database | PostgreSQL |
+| ORM | Prisma |
+| Validation | Zod |
+| Testing | Jest and Supertest |
+| Infrastructure | Docker and Docker Compose |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20 or newer
+- PostgreSQL 14 or newer, or Docker Desktop
 
 ### 1. Install dependencies
 
@@ -26,22 +80,23 @@ A small REST API that recommends jobs to candidates using a transparent, explain
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure the database
+
+Create a `.env` file in the project root:
 
 ```bash
-cp .env.example .env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/job_match?schema=public"
+PORT=3000
 ```
 
-Set `DATABASE_URL` in `.env`.
-
-### 3. Generate Prisma client and migrate
+### 3. Generate Prisma Client and run migrations
 
 ```bash
 npx prisma generate
 npx prisma migrate dev
 ```
 
-### 4. Optional seed data
+### 4. Seed example data (optional)
 
 ```bash
 npm run prisma:seed
@@ -49,7 +104,7 @@ npm run prisma:seed
 
 ### 5. Start the API
 
-Development:
+Development mode with reload:
 
 ```bash
 npm run dev
@@ -62,39 +117,55 @@ npm run build
 npm start
 ```
 
-The API runs on `http://localhost:3000`.
+The API is available at `http://localhost:3000`.
 
-## Run with Docker
-
-```bash
-docker compose up --build
-```
-
-The API container waits for PostgreSQL to become healthy and runs:
+Check that it is running:
 
 ```bash
-prisma migrate deploy
+curl http://localhost:3000/health
 ```
 
-before starting the API.
+Expected response:
 
-To stop:
-
-```bash
-docker compose down
+```json
+{"status":"ok"}
 ```
 
-To remove the database volume too:
+## API reference
 
-```bash
-docker compose down -v
+All endpoints return JSON. IDs are numeric.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Check API health |
+| `POST` | `/candidates` | Create a candidate |
+| `GET` | `/candidates/:id` | Get a candidate |
+| `GET` | `/candidates/:id/recommendations` | Recommend jobs for a candidate |
+| `POST` | `/jobs` | Create a job |
+| `GET` | `/jobs/:id` | Get a job |
+| `GET` | `/jobs/:id/recommendations` | Recommend candidates for a job |
+
+### Common query parameters
+
+| Parameter | Applies to | Description |
+| --- | --- | --- |
+| `limit` | Recommendation endpoints | Maximum number of recommendations to return |
+| `skills` | Recommendation endpoints | Skills weight; requires all four weights |
+| `experience` | Recommendation endpoints | Experience weight; requires all four weights |
+| `location` | Recommendation endpoints | Location weight; requires all four weights |
+| `salary` | Recommendation endpoints | Salary weight; requires all four weights |
+
+When custom weights are supplied, `skills + experience + location + salary` must equal `100`.
+
+<details>
+<summary>Request examples</summary>
+
+#### Create a candidate
+
+```http
+POST /candidates
+Content-Type: application/json
 ```
-
-## API endpoints
-
-### Create candidate
-
-`POST /candidates`
 
 ```json
 {
@@ -106,9 +177,12 @@ docker compose down -v
 }
 ```
 
-### Create job
+#### Create a job
 
-`POST /jobs`
+```http
+POST /jobs
+Content-Type: application/json
+```
 
 ```json
 {
@@ -128,37 +202,25 @@ docker compose down -v
 }
 ```
 
-### Job recommendations
+#### Get job recommendations
 
-`GET /candidates/:id/recommendations?limit=5`
-
-Example:
-
-```text
+```http
 GET /candidates/1/recommendations?limit=5
 ```
 
-Optional configurable weights:
+Custom scoring weights can be supplied as query parameters:
 
-```text
-GET /candidates/1/recommendations?limit=5&skills=50&experience=20&location=15&salary=15
+```http
+GET /candidates/1/recommendations?limit=5&skills=40&experience=25&location=15&salary=20
 ```
 
-If any weight override is supplied, all four weights must add up to 100.
+#### Get candidate recommendations
 
-### Reverse recommendation view (bonus)
+```http
+GET /jobs/1/recommendations?limit=5
+```
 
-`GET /jobs/:id/recommendations?limit=5`
-
-Returns the best-fit candidates for the selected job.
-
-### Health
-
-`GET /health`
-
-## Recommendation response
-
-Example shape:
+#### Recommendation response
 
 ```json
 {
@@ -170,10 +232,7 @@ Example shape:
         "title": "Frontend Developer",
         "location": "Noida",
         "remoteAllowed": true,
-        "salaryRange": {
-          "min": 600000,
-          "max": 900000
-        },
+        "salaryRange": { "min": 600000, "max": 900000 },
         "minYearsExperience": 2
       },
       "score": 90,
@@ -190,240 +249,325 @@ Example shape:
 }
 ```
 
-## Scoring formula and rationale
+</details>
+
+## PRD test cases
+
+The following requests use this job definition:
+
+```json
+{
+  "title": "Frontend Developer",
+  "requiredSkills": [
+    { "name": "React", "type": "must-have" },
+    { "name": "TypeScript", "type": "must-have" },
+    { "name": "Next.js", "type": "nice-to-have" }
+  ],
+  "minYearsExperience": 2,
+  "location": "Noida",
+  "salaryRange": { "min": 600000, "max": 900000 },
+  "remoteAllowed": true
+}
+```
+
+### 1. Missing must-have skill
+
+Request:
+
+```http
+GET /candidates/1/recommendations?limit=5
+```
+
+Candidate 1 has `React` but not `TypeScript`.
+
+Response:
+
+```json
+{
+  "candidateId": 1,
+  "recommendations": []
+}
+```
+
+The job is excluded before ranking, even when the candidate has enough experience, a matching location, and a suitable salary.
+
+### 2. Nice-to-have skill
+
+Request:
+
+```http
+GET /candidates/2/recommendations?limit=5
+```
+
+Candidate 2 has both must-have skills but not `Next.js`.
+
+Response excerpt:
+
+```json
+{
+  "score": 83,
+  "matchedSkills": ["React", "TypeScript"],
+  "missingNiceToHaveSkills": ["Next.js"],
+  "breakdown": {
+    "skills": { "score": 33.33, "max": 50 },
+    "experience": { "score": 20, "max": 20 },
+    "location": { "score": 15, "max": 15 },
+    "salary": { "score": 15, "max": 15 }
+  }
+}
+```
+
+Adding `Next.js` to the candidate keeps the job eligible and increases the skills score to `50`.
+
+### 3. Candidate below the experience requirement
+
+Request:
+
+```http
+GET /candidates/3/recommendations?limit=5
+```
+
+For a candidate with `1` year of experience and a job requiring `2` years, the response remains eligible:
+
+```json
+{
+  "breakdown": {
+    "experience": { "score": 10, "max": 20 }
+  }
+}
+```
+
+The candidate is penalized rather than excluded.
+
+### 4. Location matching
+
+Exact location, remote availability, and a non-remote mismatch produce these location scores:
+
+| Candidate location | `remoteAllowed` | Location score |
+| --- | --- | ---: |
+| `Noida` | `true` | `15` |
+| `Delhi` | `true` | `10` |
+| `Delhi` | `false` | `0` |
+
+Request:
+
+```http
+GET /candidates/4/recommendations?limit=5
+```
+
+The response includes the location result in the breakdown:
+
+```json
+{
+  "breakdown": {
+    "location": { "score": 15, "max": 15 }
+  }
+}
+```
+
+### 5. Salary fit
+
+Request:
+
+```http
+GET /candidates/5/recommendations?limit=5
+```
+
+For the salary range `600000-900000`:
+
+| Expected salary | Salary score | Result |
+| ---: | ---: | --- |
+| `500000` | `15` | Job comfortably exceeds expectation |
+| `750000` | `7.5` | Salary falls within the range |
+| `1000000` | `0` | Job maximum is below expectation |
+
+Response excerpt for an expected salary of `750000`:
+
+```json
+{
+  "breakdown": {
+    "salary": { "score": 7.5, "max": 15 }
+  }
+}
+```
+
+### 6. Case-insensitive skills
+
+Request:
+
+```http
+POST /candidates
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "Case-insensitive candidate",
+  "skills": ["react", "typescript", "next.js"],
+  "yearsOfExperience": 2,
+  "location": "Noida",
+  "expectedSalary": 600000
+}
+```
+
+The recommendation response treats these skills as matches and returns:
+
+```json
+{
+  "breakdown": {
+    "skills": { "score": 50, "max": 50 }
+  },
+  "matchedSkills": ["React", "TypeScript", "Next.js"]
+}
+```
+
+### 7. Custom scoring weights
+
+Request:
+
+```http
+GET /candidates/1/recommendations?limit=5&skills=40&experience=25&location=15&salary=20
+```
+
+The response uses the supplied maxima:
+
+```json
+{
+  "breakdown": {
+    "skills": { "score": 40, "max": 40 },
+    "experience": { "score": 25, "max": 25 },
+    "location": { "score": 15, "max": 15 },
+    "salary": { "score": 20, "max": 20 }
+  }
+}
+```
+
+All four custom weights are required and must total `100`. A partial or invalid set returns `400`:
+
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "message": "Provide all four weights, and their total must equal 100"
+    }
+  ]
+}
+```
+
+## Scoring model
 
 The default score is out of 100:
 
 | Dimension | Weight |
-|---|---:|
+| --- | ---: |
 | Skills | 50 |
 | Experience | 20 |
 | Location | 15 |
 | Salary | 15 |
 | **Total** | **100** |
 
-### 1. Must-have skills — hard eligibility filter
+<details>
+<summary>View scoring rules</summary>
 
-Before calculating a recommendation score, every must-have skill is checked.
+### Eligibility: must-have skills
 
-Skills are normalized using trimmed, case-insensitive comparison.
+Every must-have skill is checked before scoring. Skill comparison is trimmed and case-insensitive. If any must-have skill is missing, the job is excluded from recommendations.
 
-If one or more must-have skills are missing:
-
-```text
-eligible = false
-```
-
-and the job is excluded from the candidate's recommendations.
-
-This is intentionally different from a low score: the assignment says a missing must-have skill should prevent the job from appearing regardless of other dimensions.
-
-### 2. Skills — 50 points
+### Skills: 50 points
 
 ```text
-skillScore =
-  (matched required skills / total required skills) × 50
+skillScore = (matched required skills / total required skills) × 50
 ```
 
-Both must-have and nice-to-have skills contribute to the skill dimension.
+Must-have and nice-to-have skills both contribute to the score. Must-have skills also act as eligibility gates.
 
-Must-have skills still have the stronger business effect because they are also eligibility gates. Nice-to-have skills can improve ranking but cannot make an otherwise ineligible candidate eligible.
+### Experience: 20 points
 
-Why 50 points?
-
-Skills are the strongest direct signal of whether a candidate can perform the role, so half of the total score is allocated to them.
-
-### 3. Experience — 20 points
-
-If the candidate meets or exceeds the requirement:
+Meeting or exceeding the requirement gives the full 20 points. For a candidate below the requirement:
 
 ```text
-experienceScore = 20
+experienceScore = (candidateYears / minYearsExperience) × 20
 ```
 
-If they are below it:
+The result is capped at 20. Experience is scored rather than hard-filtered because candidates slightly below a requirement may still be relevant.
+
+### Location: 15 points
+
+| Match | Score |
+| --- | ---: |
+| Exact location | 15 |
+| Different location, remote allowed | 10 |
+| Different location, remote not allowed | 0 |
+
+### Salary: 15 points
+
+- Expected salary at or below the job minimum: `15`
+- Expected salary above the job maximum: `0`
+- Expected salary inside the range:
 
 ```text
-experienceScore =
-  (candidateYears / minYearsExperience) × 20
+salaryScore = 15 × (jobMax - expectedSalary) / (jobMax - jobMin)
 ```
 
-The value is capped at 20.
-
-#### Why penalize instead of exclude?
-
-Experience requirements are often flexible in real hiring. A candidate with 1.5 years against a 2-year requirement may still be highly relevant if their skills and other fit dimensions are strong.
-
-Hard-filtering experience would make the recommendation system unnecessarily brittle and would remove potentially good candidates. The must-have skill rule is already the explicit hard gate.
-
-### 4. Location — 15 points
-
-The ranking follows the assignment's ordering:
+### Final score and ranking
 
 ```text
-Exact location match  → 15
-Different location + remoteAllowed → 10
-Different location + remoteAllowed=false → 0
+finalScore = skillScore + experienceScore + locationScore + salaryScore
 ```
 
-The remote score is `2/3` of the exact-location score so an exact match always ranks above remote compatibility.
+The final score is clamped to `0-100`, rounded to the nearest integer, and sorted in descending order. Candidate/job ID provides a deterministic tie-breaker.
 
-### 5. Salary — 15 points
-
-The candidate supplies a single `expectedSalary`, while the job supplies a range.
-
-The rule treats a salary comfortably above expectation as the best fit.
-
-If expected salary is at or below the job minimum:
-
-```text
-salaryScore = 15
-```
-
-If expected salary is above the job maximum:
-
-```text
-salaryScore = 0
-```
-
-If expected salary falls inside the range:
-
-```text
-salaryScore =
-  15 × (jobMax - expectedSalary)
-       / (jobMax - jobMin)
-```
-
-Example:
-
-```text
-Expected salary = 700,000
-Job range       = 600,000–900,000
-
-salaryScore =
-15 × (900,000 - 700,000) / (900,000 - 600,000)
-= 10
-```
-
-This creates a smooth salary-fit score instead of an arbitrary yes/no condition.
-
-### 6. Final score
-
-For eligible jobs:
-
-```text
-finalScore =
-  skillScore +
-  experienceScore +
-  locationScore +
-  salaryScore
-```
-
-The final value is clamped to `0–100` and rounded to the nearest integer.
-
-Recommendations are sorted by descending score. Candidate/job ID is used as a deterministic tie-breaker.
-
-## Configurable weights
-
-The default configuration is:
-
-```text
-skills=50
-experience=20
-location=15
-salary=15
-```
-
-The recommendation endpoints also accept the four weights as query parameters. When overrides are used, their total must equal 100.
-
-For example:
-
-```text
-/candidates/1/recommendations?skills=40&experience=25&location=15&salary=20
-```
-
-This keeps the scoring policy configurable without changing the scoring algorithm.
-
-## Assumptions
-
-1. Salary values are annual amounts in the same currency and unit.
-2. A candidate has one expected salary rather than a salary range.
-3. Skill matching is case-insensitive and ignores surrounding whitespace.
-4. Location comparison is case-insensitive and otherwise exact.
-5. A remote job is treated as compatible with a candidate from another location, but exact location is preferred.
-6. Experience is numeric and may contain fractional years.
-7. A job with a salary range whose maximum is below the candidate's expectation receives zero on the salary dimension.
-8. The system is intentionally deterministic and does not learn from historical hiring outcomes.
-
-## What I would improve with more time
-
-- Add pagination for very large candidate/job datasets.
-- Move scoring weights to a database/config service for production environments.
-- Add richer location normalization (city aliases, commute radius, country).
-- Support candidate salary ranges instead of a single expectation.
-- Add integration tests using a disposable PostgreSQL database.
-- Add OpenAPI/Swagger documentation.
-- Add structured logging and request IDs.
-- Add database-level pagination/filtering so every job does not need to be loaded into application memory.
-- Add performance benchmarks for large datasets.
+</details>
 
 ## Testing
 
-The highest-value scoring behavior is covered by unit tests, including:
-
-- missing must-have skill
-- case-insensitive skill matching
-- nice-to-have contribution
-- experience penalty
-- experience requirement met
-- exact vs remote vs mismatch location
-- salary inside range
-- no salary overlap
-- salary comfortably above expectation
-- final score bounds
-
-Run:
+Run the test suite:
 
 ```bash
 npm test
 ```
 
-## AI usage
+The scoring tests cover must-have eligibility, case-insensitive skills, nice-to-have skills, experience penalties, location matching, salary ranges, and score bounds.
 
-AI tools were used as a development aid for scaffolding, boilerplate, test-case brainstorming, and reviewing implementation alternatives.
+## Useful commands
 
-The final implementation was manually reviewed and edited around the assignment's business rules. In particular, the must-have hard filter, experience penalty decision, location ordering, salary formula, deterministic ranking, configurable weights, validation, and Docker migration startup behavior were treated as explicit design decisions rather than blindly accepting generated suggestions.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server with reload |
+| `npm run build` | Compile TypeScript |
+| `npm start` | Start the compiled server |
+| `npm test` | Run Jest tests |
+| `npm run prisma:generate` | Generate Prisma Client |
+| `npm run prisma:migrate` | Apply development migrations |
+| `npm run prisma:seed` | Insert example data |
+| `docker compose down` | Stop Docker services |
+| `docker compose down -v` | Stop services and remove database data |
 
 ## Project structure
 
 ```text
 job-match-api/
 ├── prisma/
-│   ├── migrations/
-│   ├── schema.prisma
-│   └── seed.ts
+│   ├── migrations/       # Database migrations
+│   ├── schema.prisma     # Database schema
+│   └── seed.ts           # Example data
 ├── src/
-│   ├── config/
-│   ├── controllers/
-│   ├── lib/
-│   ├── middleware/
-│   ├── routes/
-│   ├── scoring/
-│   ├── services/
-│   ├── utils/
-│   ├── validators/
-│   ├── app.ts
-│   └── server.ts
+│   ├── config/           # Environment configuration
+│   ├── controllers/      # HTTP request handlers
+│   ├── lib/              # Shared clients, including Prisma
+│   ├── middleware/       # Error and 404 handling
+│   ├── routes/           # API route definitions
+│   ├── scoring/          # Scoring algorithm and configuration
+│   ├── services/         # Business logic
+│   ├── utils/            # Shared errors and utilities
+│   ├── validators/       # Zod request schemas
+│   ├── app.ts            # Express app
+│   └── server.ts         # Server entry point
 ├── tests/
-│   ├── api/
-│   └── scoring/
-├── .env.example
+│   ├── api/              # API tests
+│   └── scoring/          # Scoring unit tests
 ├── docker-compose.yml
 ├── Dockerfile
-├── jest.config.js
-├── package.json
-├── tsconfig.json
-└── README.md
+└── package.json
 ```
-#   J o b - M a t c h _ a p i  
- 
